@@ -61,15 +61,6 @@ namespace ModConfigExample
         void Awake()
         {
             Debug.Log("DisplayItemValue Loaded!!!");
-
-            // 加载配置
-            TryLoadingConfig();
-
-            // 尝试初始化 ModConfig
-            if (ModConfigAPI.IsAvailable())
-            {
-                SetupModConfig();
-            }
         }
 
         void OnDestroy()
@@ -81,16 +72,15 @@ namespace ModConfigExample
         void OnEnable()
         {
             ItemHoveringUI.onSetupItem += OnSetupItemHoveringUI;
-
             ModManager.OnModActivated += OnModActivated;
-        }
 
-        void OnDisable()
-        {
-            ItemHoveringUI.onSetupItem -= OnSetupItemHoveringUI;
-
-            ModManager.OnModActivated -= OnModActivated;
-            ModConfigAPI.SafeRemoveOnOptionsChangedDelegate(OnOptionsChanged);
+            // 立即检查一次，防止 ModConfig 已经加载但事件错过了
+            if (ModConfigAPI.IsAvailable())
+            {
+                Debug.Log("DisplayItemValue: ModConfig already available!");
+                SetupModConfig();
+                LoadConfigFromModConfig();
+            }
         }
 
         private void OnModActivated(ModInfo info, Duckov.Modding.ModBehaviour behaviour)
@@ -99,40 +89,16 @@ namespace ModConfigExample
             {
                 Debug.Log("DisplayItemValue: ModConfig activated!");
                 SetupModConfig();
+                LoadConfigFromModConfig();
             }
         }
 
-        private void TryLoadingConfig()
+        void OnDisable()
         {
-            try
-            {
-                if (File.Exists(persistentConfigPath))
-                {
-                    string json = File.ReadAllText(persistentConfigPath);
-                    DisplayItemValueConfig loadedConfig = JsonUtility.FromJson<DisplayItemValueConfig>(json);
+            ItemHoveringUI.onSetupItem -= OnSetupItemHoveringUI;
 
-                    // 检查配置版本
-                    if (loadedConfig.configToken == config.configToken)
-                    {
-                        config = loadedConfig;
-                        Debug.Log("DisplayItemValue: Config loaded successfully");
-                    }
-                    else
-                    {
-                        Debug.LogWarning("DisplayItemValue: Config version mismatch, using default config");
-                        SaveConfig(config);
-                    }
-                }
-                else
-                {
-                    SaveConfig(config);
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"DisplayItemValue: Failed to load config: {e}");
-                SaveConfig(config);
-            }
+            ModManager.OnModActivated -= OnModActivated;
+            ModConfigAPI.SafeRemoveOnOptionsChangedDelegate(OnModConfigOptionsChanged);
         }
 
         private void SaveConfig(DisplayItemValueConfig config)
@@ -157,8 +123,10 @@ namespace ModConfigExample
                 return;
             }
 
+            Debug.Log("准备添加ModConfig配置项");
+
             // 添加配置变更监听
-            ModConfigAPI.SafeAddOnOptionsChangedDelegate(OnOptionsChanged);
+            ModConfigAPI.SafeAddOnOptionsChangedDelegate(OnModConfigOptionsChanged);
 
             // 根据当前语言设置描述文字
             SystemLanguage[] chineseLanguages = {
@@ -172,14 +140,14 @@ namespace ModConfigExample
             // 添加配置项
             ModConfigAPI.SafeAddBoolDropdownList(
                 MOD_NAME,
-                $"{MOD_NAME}_showItemValue",
+                "showItemValue",
                 isChinese ? "显示物品价值" : "Show Item Value",
                 config.showItemValue
             );
 
             ModConfigAPI.SafeAddInputWithSlider(
                 MOD_NAME,
-                $"{MOD_NAME}_fontSize",
+                "fontSize",
                 isChinese ? "文字大小" : "Font Size",
                 typeof(float),
                 config.fontSize,
@@ -196,7 +164,7 @@ namespace ModConfigExample
 
             ModConfigAPI.SafeAddDropdownList(
                 MOD_NAME,
-                $"{MOD_NAME}_valueFormat",
+                "valueFormat",
                 isChinese ? "价值显示格式" : "Value Display Format",
                 formatOptions,
                 typeof(int),
@@ -205,7 +173,7 @@ namespace ModConfigExample
 
             ModConfigAPI.SafeAddInputWithSlider(
                 MOD_NAME,
-                $"{MOD_NAME}_valuePrefix",
+                "valuePrefix",
                 isChinese ? "价值前缀" : "Value Prefix",
                 typeof(string),
                 config.valuePrefix,
@@ -214,7 +182,7 @@ namespace ModConfigExample
 
             ModConfigAPI.SafeAddInputWithSlider(
                 MOD_NAME,
-                $"{MOD_NAME}_textColor",
+                "textColor",
                 isChinese ? "文字颜色" : "Text Color",
                 typeof(string),
                 config.textColor,
@@ -224,25 +192,31 @@ namespace ModConfigExample
             Debug.Log("DisplayItemValue: ModConfig setup completed");
         }
 
-        private void OnOptionsChanged(string key)
+        private void OnModConfigOptionsChanged(string key)
         {
-            if (!ModConfigAPI.IsAvailable())
+            if (!key.StartsWith(MOD_NAME + "_"))
                 return;
 
-            // 读取更新后的配置值
-            config.showItemValue = OptionsManager.Load<bool>($"{MOD_NAME}_showItemValue", config.showItemValue);
-            config.fontSize = OptionsManager.Load<float>($"{MOD_NAME}_fontSize", config.fontSize);
-            config.valueFormat = OptionsManager.Load<int>($"{MOD_NAME}_valueFormat", config.valueFormat);
-            config.valuePrefix = OptionsManager.Load<string>($"{MOD_NAME}_valuePrefix", config.valuePrefix);
-            config.textColor = OptionsManager.Load<string>($"{MOD_NAME}_textColor", config.textColor);
+            // 使用新的 LoadConfig 方法读取配置
+            LoadConfigFromModConfig();
 
-            // 保存配置
+            // 保存到本地配置文件
             SaveConfig(config);
 
             // 更新当前显示的文本样式（如果正在显示）
             UpdateTextStyle();
 
-            Debug.Log($"DisplayItemValue: Config updated - {key}");
+            Debug.Log($"DisplayItemValue: ModConfig updated - {key}");
+        }
+
+        private void LoadConfigFromModConfig()
+        {
+            // 使用新的 LoadConfig 方法读取所有配置
+            config.showItemValue = ModConfigAPI.SafeLoad<bool>(MOD_NAME, "showItemValue", config.showItemValue);
+            config.fontSize = ModConfigAPI.SafeLoad<float>(MOD_NAME, "fontSize", config.fontSize);
+            config.valueFormat = ModConfigAPI.SafeLoad<int>(MOD_NAME, "valueFormat", config.valueFormat);
+            config.valuePrefix = ModConfigAPI.SafeLoad<string>(MOD_NAME, "valuePrefix", config.valuePrefix);
+            config.textColor = ModConfigAPI.SafeLoad<string>(MOD_NAME, "textColor", config.textColor);
         }
 
         private void UpdateTextStyle()
@@ -278,7 +252,7 @@ namespace ModConfigExample
             Text.gameObject.SetActive(true);
             Text.transform.SetParent(uiInstance.LayoutParent);
             Text.transform.localScale = Vector3.one;
-            Text.text = $"{config.valuePrefix}{displayValue}";
+            Text.text = $"{config.valuePrefix}{displayValue:F0}";
             Text.fontSize = config.fontSize;
 
             // 设置颜色

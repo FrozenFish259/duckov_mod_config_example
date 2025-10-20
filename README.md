@@ -6,4 +6,3 @@ This is an example project showing how to use [ModConfig](https://github.com/Fro
 * ModManager.OnModActivated += OnModActivated;
 * ModConfigAPI.IsAvailable()
 * ModConfigAPI.SafeAddOnOptionsChangedDelegate(OnOptionsChanged);
-* ModConfigAPI.SafeRemoveOnOptionsChangedDelegate(OnOptionsChanged);

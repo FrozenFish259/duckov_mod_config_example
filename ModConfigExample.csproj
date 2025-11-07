@@ -1,28 +1,114 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>netstandard2.1</TargetFramework>
-    <Nullable>enable</Nullable>
-    <!-- This should be the folder that contains Duckov.exe -->
-    <!-- 下面这行里填写你的鸭科夫安装路径，这样编译器就能找到相关的dll文件 -->
-    <DuckovPath>D:\SteamLibrary\steamapps\common\Escape from Duckov</DuckovPath>
-    <ManagedPath>$(DuckovPath)\Duckov_Data\Managed</ManagedPath>
-    <BaseOutputPath></BaseOutputPath>
-  </PropertyGroup>
-  <ItemGroup>
+    <Import Project="$(MSBuildProjectName).csproj.user" Condition="Exists('$(MSBuildProjectName).csproj.user')"/>
 
-    <!-- 包含所有 DLL -->
-    <AllDlls Include="$(ManagedPath)\*.dll" />
+    <PropertyGroup>
+        <TargetFramework>netstandard2.1</TargetFramework>
 
-    <!-- 定义要排除的系统 DLL -->
-    <SystemDlls Include="$(ManagedPath)\mscorlib.dll;&#xA;                      $(ManagedPath)\System.dll;&#xA;                      $(ManagedPath)\System.*.dll;&#xA;                      $(ManagedPath)\Microsoft.*.dll;&#xA;                      $(ManagedPath)\netstandard.dll;&#xA;                      $(ManagedPath)\WindowsBase.dll" />
-    <Content Include="Release\preview.png" />
-    <None Include="Release\info.ini" />
+        <!-- Mod Project Settings -->
+        <Version>1.0.0</Version>
+        <Name>ModConfigExample</Name>
+        <DisplayName>Mod Config Example</DisplayName>
+        <Description>An example to show how to use ModConfig</Description>
+        <Authors>YourName</Authors>
 
-    <!-- 引用非系统 DLL -->
-    <Reference Include="@(AllDlls)" Exclude="@(SystemDlls)" />
+        <!-- Paths -->
+        <PreviewImagePath>$(ProjectDir)preview.png</PreviewImagePath>
+        <ManagedPath>$(DuckovPath)\Duckov_Data\Managed</ManagedPath>
+        <ModsPath>$(DuckovPath)\Duckov_Data\Mods</ModsPath>
+        <DuckovExePath>$(DuckovPath)\Duckov.exe</DuckovExePath>
+        <ReleaseDistPath>$(ProjectDir)dist\</ReleaseDistPath>
 
-  </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Release\Debug\netstandard2.1\" />
-  </ItemGroup> 
+        <!-- Metadata -->
+        <RepositoryType>https://github.com/FrozenFish259/duckov_mod_config_example</RepositoryType>
+        <Nullable>enable</Nullable>
+        <Configurations>Debug;Release;Build And Copy</Configurations>
+        <Platforms>AnyCPU</Platforms>
+        <AssemblyName>$(Name)</AssemblyName>
+
+    </PropertyGroup>
+
+    <!-- Generate info.ini file before build -->
+    <Target Name="GenerateInfoIni" BeforeTargets="BeforeBuild">
+        <ItemGroup>
+            <!-- mod name, primarily used for loading the dll file -->
+            <IniFileLines Include="name=$(AssemblyName)"/>
+            <!-- name displayed in the mod list -->
+            <IniFileLines Include="displayName=$(DisplayName)"/>
+            <!-- description of the mod -->
+            <IniFileLines Include="description=$(Description)"/>
+            <IniFileLines Include="author=$(Authors)"/>
+            <IniFileLines Include="version=$(Version)"/>
+        </ItemGroup>
+
+        <WriteLinesToFile
+                File="$(ProjectDir)info.ini"
+                Lines="@(IniFileLines)"
+                Overwrite="true"
+                Encoding="UTF-8"/>
+
+        <Message Text="Generated info.ini from.csproj properties." Importance="high"/>
+    </Target>
+
+    <!-- Copy mod files to Duckov Mods folder after build -->
+    <Target Name="CopyModToGameFolder" AfterTargets="Build" Condition="'$(Configuration)' == 'Build And Copy'">
+
+        <PropertyGroup>
+            <TargetModPath>$(ModsPath)\$(AssemblyName)\</TargetModPath>
+        </PropertyGroup>
+
+        <Message Text="Deploying mod to: $(TargetModPath)" Importance="high"/>
+        <MakeDir Directories="$(TargetModPath)" Condition="!Exists('$(TargetModPath)')"/>
+
+        <ItemGroup>
+            <FilesToCopy Include="$(TargetPath)"/>
+            <FilesToCopy Include="$(TargetDir)$(TargetName).pdb" Condition="Exists('$(TargetDir)$(TargetName).pdb')"/>
+            <FilesToCopy Include="$(ProjectDir)info.ini" Condition="Exists('$(ProjectDir)info.ini')"/>
+            <FilesToCopy Include="$(PreviewImagePath)" Condition="Exists('$(PreviewImagePath)')"/>
+        </ItemGroup>
+
+        <Copy SourceFiles="@(FilesToCopy)" DestinationFolder="$(TargetModPath)"/>
+
+        <Message Text="Mod deployed successfully." Importance="high"/>
+    </Target>
+
+    <Target Name="PackageModZip" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+
+        <PropertyGroup>
+            <PackageDir>$(IntermediateOutputPath)ModPackage</PackageDir>
+            <PackageStagingDir>$(PackageDir)\$(AssemblyName)\</PackageStagingDir>
+            <ZipFile>$(ReleaseDistPath)\$(AssemblyName)-$(Version).zip</ZipFile>
+        </PropertyGroup>
+
+        <MakeDir Directories="$(ReleaseDistPath)" Condition="!Exists('$(ReleaseDistPath)')"/>
+
+        <Message Text="Creating mod package at: $(ZipFile)" Importance="high"/>
+
+        <MakeDir Directories="$(PackageStagingDir)"/>
+
+        <ItemGroup>
+            <FilesToPackage Include="$(TargetPath)"/>
+            <FilesToPackage Include="$(ProjectDir)info.ini" Condition="Exists('$(ProjectDir)info.ini')"/>
+            <FilesToPackage Include="$(PreviewImagePath)" Condition="Exists('$(PreviewImagePath)')"/>
+        </ItemGroup>
+
+        <Copy SourceFiles="@(FilesToPackage)" DestinationFolder="$(PackageStagingDir)"/>
+
+        <ZipDirectory SourceDirectory="$(PackageDir)" DestinationFile="$(ZipFile)" Overwrite="true"/>
+    </Target>
+
+    <ItemGroup>
+        <AllDlls Include="$(ManagedPath)\*.dll"/>
+        <SystemDlls Include="$(ManagedPath)\mscorlib.dll;$(ManagedPath)\System.dll;$(ManagedPath)\System.*.dll;$(ManagedPath)\Microsoft.*.dll;$(ManagedPath)\netstandard.dll;$(ManagedPath)\WindowsBase.dll"/>
+        <Reference Include="@(AllDlls)" Exclude="@(SystemDlls)"/>
+    </ItemGroup>
+
+    <!-- Include game executable and Mods folder in the output for easy access -->
+    <ItemGroup>
+        <Content Include="$(DuckovExePath)">
+            <Link>Shortcut\Duckov.exe</Link>
+        </Content>
+        <Content Include="$(ModsPath)\**/*.*">
+            <Link>Shortcut\Mods\%(RecursiveDir)%(Filename)%(Extension)</Link>
+        </Content>
+    </ItemGroup>
 </Project>

@@ -15,6 +15,7 @@
         <PreviewImagePath>$(ProjectDir)preview.png</PreviewImagePath>
         <ManagedPath>$(DuckovPath)\Duckov_Data\Managed</ManagedPath>
         <ModsPath>$(DuckovPath)\Duckov_Data\Mods</ModsPath>
+        <DuckovExePath>$(DuckovPath)\Duckov.exe</DuckovExePath>
         <ReleaseDistPath>$(ProjectDir)dist\</ReleaseDistPath>
 
         <!-- Metadata -->
@@ -23,7 +24,7 @@
         <Configurations>Debug;Release;Build And Copy</Configurations>
         <Platforms>AnyCPU</Platforms>
         <AssemblyName>$(Name)</AssemblyName>
-        
+
     </PropertyGroup>
 
     <!-- Generate info.ini file before build -->
@@ -99,5 +100,15 @@
         <AllDlls Include="$(ManagedPath)\*.dll"/>
         <SystemDlls Include="$(ManagedPath)\mscorlib.dll;$(ManagedPath)\System.dll;$(ManagedPath)\System.*.dll;$(ManagedPath)\Microsoft.*.dll;$(ManagedPath)\netstandard.dll;$(ManagedPath)\WindowsBase.dll"/>
         <Reference Include="@(AllDlls)" Exclude="@(SystemDlls)"/>
+    </ItemGroup>
+
+    <!-- Include game executable and Mods folder in the output for easy access -->
+    <ItemGroup>
+        <Content Include="$(DuckovExePath)">
+            <Link>Shortcut\Duckov.exe</Link>
+        </Content>
+        <Content Include="$(ModsPath)\**/*.*">
+            <Link>Shortcut\Mods\%(RecursiveDir)%(Filename)%(Extension)</Link>
+        </Content>
     </ItemGroup>
 </Project>
